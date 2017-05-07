@@ -1,16 +1,16 @@
-from regex import *
-from nfa import *
+from .regex import *
+from .nfa import *
 
-def _ascii_regex_to_nfa(r, nfa):
-    assert isinstance(r, ASCIIRegex)
+def _regex_ascii_to_nfa(r, nfa):
+    assert isinstance(r, RegexASCII)
     start = nfa.mk_node()
     end = nfa.mk_node()
     nfa.connect(start, EdgeType.mk_ascii_edge(r.char), end)
     return (start, end)
 
 
-def _or_regex_to_nfa(r, nfa):
-    assert isinstance(r, OrRegex)
+def _regex_or_to_nfa(r, nfa):
+    assert isinstance(r, RegexOr)
     
     (s1, e1) = _regex_to_nfa(r.r1, nfa)
     (s2, e2) = _regex_to_nfa(r.r2, nfa)
@@ -26,26 +26,8 @@ def _or_regex_to_nfa(r, nfa):
 
     return (sor, eor)
 
-def replace_old_nfa_node(nfa, old, new):
-    assert isinstance(nfa, NFA)
-    assert isinstance(old, NFANode)
-    assert isinstance(new, NFANode)
-
-    if old == nfa.start_node:
-        nfa.start_node = new
-
-    if old == nfa.end_node:
-        nfa.end_node = new
-
-    for c in nfa.connections:
-        if c.src == old:
-            c.src = new
-
-        if c.dest == old:
-            c.dest = new
-
-def _sequence_regex_to_nfa(r, nfa):
-    assert isinstance(r, SequenceRegex)
+def _regex_sequence_to_nfa(r, nfa):
+    assert isinstance(r, RegexSequence)
 
     (s1, e1) = _regex_to_nfa(r.r1, nfa)
     (s2, e2) = _regex_to_nfa(r.r2, nfa)
@@ -80,12 +62,12 @@ def _regex_to_nfa(r, nfa):
     assert isinstance(r, Regex)
     assert isinstance(nfa, NFA)
 
-    if isinstance(r, ASCIIRegex):
-        return _ascii_regex_to_nfa(r, nfa)
-    elif isinstance(r, OrRegex):
-        return _or_regex_to_nfa(r, nfa)
-    elif isinstance(r, SequenceRegex):
-        return _sequence_regex_to_nfa(r, nfa)
+    if isinstance(r, RegexASCII):
+        return _regex_ascii_to_nfa(r, nfa)
+    elif isinstance(r, RegexOr):
+        return _regex_or_to_nfa(r, nfa)
+    elif isinstance(r, RegexSequence):
+        return _regex_sequence_to_nfa(r, nfa)
     elif isinstance(r, StarRegex):
         return _star_regex_to_nfa(r, nfa)
     else:
@@ -98,5 +80,3 @@ def regex_to_nfa(r):
     nfa.end_node = end
     return nfa
 
-def nfa_to_regex(nfa):
-    pass

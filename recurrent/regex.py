@@ -14,7 +14,7 @@ class Regex:
     def __repr__(self):
         return self.__str__()
 
-class ASCIIRegex(Regex):
+class RegexASCII(Regex):
     def __init__(self, c):
         self._c = c
 
@@ -28,7 +28,7 @@ class ASCIIRegex(Regex):
     def generate_text(self, cost):
         return str(self._c)
 
-class OrRegex(Regex):
+class RegexOr(Regex):
     def __init__(self, r1, r2):
         assert isinstance(r1, Regex)
         assert isinstance(r2, Regex), "%s is not a regex" % (r2, )
@@ -45,7 +45,7 @@ class OrRegex(Regex):
         else:
             return self.r2.generate_text(cost)
 
-class SequenceRegex(Regex):
+class RegexSequence(Regex):
     def __init__(self, r1, r2):
         assert isinstance(r1, Regex)
         assert isinstance(r2, Regex), "%s is not a regex" % (r2, )
@@ -75,50 +75,50 @@ class StarRegex(Regex):
 
 
 
-def build_random_regex(num_ors, num_stars, num_seq, min_ascii_in_chunk, max_ascii_in_chunk):
+def regex_mk_random(num_ors, num_stars, num_seq, min_ascii_in_chunk, max_ascii_in_chunk):
     assert min_ascii_in_chunk > 0
     assert max_ascii_in_chunk > 0
     assert max_ascii_in_chunk >= min_ascii_in_chunk
 
     if num_ors == 0 and num_stars == 0 and num_seq == 0:
         chars = string.ascii_letters + string.digits + string.punctuation
-        asciis = [ASCIIRegex(random.choice(chars)) for _ in range(random.randint(min_ascii_in_chunk, max_ascii_in_chunk))]
+        asciis = [RegexASCII(random.choice(chars)) for _ in range(random.randint(min_ascii_in_chunk, max_ascii_in_chunk))]
 
         assert len(asciis) > 0
         if len(asciis) == 1:
             return asciis[0]
         
         assert len(asciis) >= 2
-        seq = SequenceRegex(asciis[0], asciis[1])
+        seq = RegexSequence(asciis[0], asciis[1])
         asciis = asciis[2:]
 
         for x in asciis:
-            seq = SequenceRegex(seq, x)
+            seq = RegexSequence(seq, x)
 
         return seq
     
     choices = []
     if num_ors > 0:
-        choices.append(OrRegex(build_random_regex(num_ors - 1, num_stars, num_seq, min_ascii_in_chunk, max_ascii_in_chunk),
-                               build_random_regex(num_ors - 1, num_stars, num_seq, min_ascii_in_chunk, max_ascii_in_chunk)))
+        choices.append(RegexOr(regex_mk_random(num_ors - 1, num_stars, num_seq, min_ascii_in_chunk, max_ascii_in_chunk),
+                               regex_mk_random(num_ors - 1, num_stars, num_seq, min_ascii_in_chunk, max_ascii_in_chunk)))
 
     if num_stars > 0:
-        choices.append(StarRegex(build_random_regex(num_ors, num_stars - 1, num_seq, min_ascii_in_chunk, max_ascii_in_chunk)))
+        choices.append(StarRegex(regex_mk_random(num_ors, num_stars - 1, num_seq, min_ascii_in_chunk, max_ascii_in_chunk)))
 
     if num_seq > 0:
-        choices.append(SequenceRegex(build_random_regex(num_ors, num_stars, num_seq - 1, min_ascii_in_chunk, max_ascii_in_chunk),
-                                     build_random_regex(num_ors, num_stars, num_seq - 1, min_ascii_in_chunk, max_ascii_in_chunk)))
+        choices.append(RegexSequence(regex_mk_random(num_ors, num_stars, num_seq - 1, min_ascii_in_chunk, max_ascii_in_chunk),
+                                     regex_mk_random(num_ors, num_stars, num_seq - 1, min_ascii_in_chunk, max_ascii_in_chunk)))
 
-    return prune_regex(random.choice(choices))
+    return regex_prune(random.choice(choices))
 
 
-def prune_regex(regex):
-    if isinstance(regex, ASCIIRegex):
+def regex_prune(regex):
+    if isinstance(regex, RegexASCII):
         return regex
     elif isinstance(regex, StarRegex):
         if isinstance(regex.r, StarRegex):
-            return prune_regex(regex.r)
+            return regex_prune(regex.r)
         else:
-            return StarRegex(prune_regex(regex.r))
-    elif isinstance(regex, SequenceRegex) or isinstance(regex, OrRegex):
-        return SequenceRegex(prune_regex(regex.r1), prune_regex(regex.r2))
+            return StarRegex(regex_prune(regex.r))
+    elif isinstance(regex, RegexSequence) or isinstance(regex, RegexOr):
+        return RegexSequence(regex_prune(regex.r1), regex_prune(regex.r2))

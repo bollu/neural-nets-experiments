@@ -123,7 +123,7 @@ if __name__ == "__main__":
                           (xs, weights, biases, nn_out_y, ys))
                     print("cost: %s" % cost)
 
-            run_save_vars(saver, sess)
+            run_save_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
 
             weights = sess.run(var_weights)
             biases = sess.run(var_biases)

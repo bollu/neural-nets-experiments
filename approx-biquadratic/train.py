@@ -34,7 +34,7 @@ NUM_TRANING_STEPS = 1000000
 CONSTANTS = [420000, 43000, -700, -70, 1]
 
 INPUT_DIM = 1
-HIDDEN_DIMS = [10, 10, 10, 10, 10, 10]
+HIDDEN_DIMS = [5, 5, 5, 5, 30, 5]
 OUTPUT_DIM = INPUT_DIM
 
 BATCH_SIZE = 1000
@@ -183,23 +183,23 @@ if __name__ == "__main__" and not is_running_in_ipython():
 
             run_restore_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
             plotter = Plotter()
-
             prev_cost = None
+
             for i in range(NUM_TRANING_STEPS):
                 (xs, ys) = mk_input()
                 nn_out_ys, cost, weights, biases, _ = \
                     sess.run([var_y, var_cost, var_weights, var_biases, optimizer],
                              feed_dict={ph_x: xs, ph_y: ys})
                 
-                if prev_cost == None:
-                    prev_cost = cost
-                    
                 if i % 5000 == 0:
                     run_save_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
 
                 if i % 1000 == 0:
                     print("cost: %s" % cost)
                 
+                if prev_cost is None:
+                    prev_cost = cost
+                    
                 if abs(cost - prev_cost) / cost >= 0.3:
                     plotter.plot_data(xs, ys, nn_out_ys)
                     prev_cost = cost

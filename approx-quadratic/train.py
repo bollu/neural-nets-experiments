@@ -103,12 +103,19 @@ def mk_optimiser(var_cost, learning_rate):
     return optimizer
 
 
-def mk_plot(real_xs, real_ys, train_ys):
-    fig = plt.figure()
-    ax1 = fig.add_subplot(111)
-    ax1.scatter(real_xs, real_ys, alpha=0.5, label="real")
-    ax1.scatter(real_xs, train_ys, alpha=0.5, label="train")
-    plt.show()
+class Plotter:
+    def __init__(self):
+        plt.ion()
+        self.fig = plt.figure()
+        self.ax1 = self.fig.add_subplot(111)
+        plt.show()
+
+    def plot_data(self, real_xs, real_ys, train_ys):
+        self.ax1.cla()
+        real = self.ax1.scatter(real_xs, real_ys, alpha=0.5, label="real", color="b")
+        train = self.ax1.scatter(real_xs, train_ys, alpha=0.5, label="train", color="r")
+        self.ax1.legend(handles=[real, train])
+        plt.pause(0.05)
 
 
 def run_save_vars(saver, sess, savefolder, savepath):
@@ -172,6 +179,8 @@ if __name__ == "__main__" and not is_running_in_ipython():
         with sess:
 
             run_restore_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
+            plotter = Plotter()
+            prev_cost = None
 
             for i in range(NUM_TRANING_STEPS):
                 (xs, ys) = mk_input()
@@ -189,8 +198,12 @@ if __name__ == "__main__" and not is_running_in_ipython():
                     print("weights: %s\nbiases: %s" % (weights, biases))
                     print("cost: %s" % cost)
 
-                if i % 4000 == 0:
-                    mk_plot(xs, ys, nn_out_ys)
+                if prev_cost is None:
+                    prev_cost = cost
+
+                if abs(cost - prev_cost) / cost >= 0.3:
+                    plotter.plot_data(xs, ys, nn_out_ys)
+                    prev_cost = cost
 
             run_save_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
 

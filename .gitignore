@@ -1,3 +1,10 @@
 saves/
 logs/
 tags
+__pycache__
+# vim cache
+*.sw*
+
+# graphviz
+*.gv
+*.gv.pdf

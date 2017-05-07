@@ -22,7 +22,7 @@ LOGSPATH = 'logs/'
 SAVEFILEPATH = os.path.join(SAVEFOLDER, SAVENAME)
 
 # meta variables / hyperparameters
-LEARNING_RATE = 0.2
+LEARNING_RATE = 0.002
 NUM_TRANING_STEPS = 1000000
 
 
@@ -34,13 +34,13 @@ INPUT_DIM = 1
 HIDDEN_DIMS = []
 OUTPUT_DIM = INPUT_DIM
 
-BATCH_SIZE = 5000
+BATCH_SIZE = 100
 
 def is_running_in_ipython():
     return "get_ipython" in dir()
 
 def mk_input():
-    xs = np.random.normal(10, 30, size=(BATCH_SIZE, INPUT_DIM))
+    xs = np.random.normal(0, 5, size=(BATCH_SIZE, INPUT_DIM))
     ys = np.zeros(shape=(BATCH_SIZE, INPUT_DIM))
     for (i, c) in enumerate(CONSTANTS):
         ys = ys + c * np.power(xs, i)
@@ -56,7 +56,7 @@ def mk_vars():
     var_weights = []
     var_biases = []
 
-    for i in range(len(HIDDEN_DIMS)):
+    for i in range(1, len(HIDDEN_DIMS)):
         var_weights.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i - 1], HIDDEN_DIMS[i]]), name="hw_%s" % i))
         var_biases.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i]]), name="hb_%s" % i))
 
@@ -76,11 +76,11 @@ def axpy(a, x, y, i):
 
 def mk_nn(ph_x, var_weights, var_biases):
     current = ph_x
-    for i in range(len(HIDDEN_DIMS)):
+    for i in range(0, len(HIDDEN_DIMS) - 1):
         next = axpy(current, var_weights[i], var_biases[i], i);
 
         # last layer should not have relu
-        if i < len(HIDDEN_DIMS) - 1:
+        if i < len(HIDDEN_DIMS) - 2:
             next = tf.nn.relu(next)
         current = next
 
@@ -113,7 +113,7 @@ def huber_loss(y_true, y_pred, max_grad=1.):
 
 
 def mk_cost(ph_y, var_y):
-    errs = huber_loss(ph_y, var_y)
+    errs = tf.losses.mean_squared_error(ph_y, var_y)
     return errs
 
 
@@ -176,8 +176,8 @@ if __name__ == "__main__" and not is_running_in_ipython():
 
 
         sess = tf.Session()
-        sess = tf_debug.LocalCLIDebugWrapperSession(sess)
-        sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+        # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
+        # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 
         with sess:
             run_restore_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)

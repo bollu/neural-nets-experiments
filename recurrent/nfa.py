@@ -59,6 +59,9 @@ class NFANode:
     def __init__(self, idx):
         self._idx = idx
 
+    def __eq__(self, other):
+        return self._idx == other._idx
+
     @property
     def idx(self):
         return self._idx
@@ -109,7 +112,7 @@ class Connection:
 
 class NFA:
     def __init__(self):
-        self._connections = []
+        self._connections = set()
         self._numnodes = 0
         self._start_node = None
         self._end_node = None
@@ -139,7 +142,15 @@ class NFA:
     def end_node(self, node):
         assert isinstance(node, NFANode)
         self._end_node = node
-        
+
+    def __eq__(self, other):
+        return self.numnodes == other.numnodes
+
+        # TODO: write a check that they have the same connections
+        # on performing BFS / DFS, we should find same shape
+        # fuck, is this graph isomorphism?
+        # OR: convert to minimal DFA. Ack, exponential :/
+
     def __str__(self):
         return "numNodes: %s\n%s" % (self._numnodes, pprint.pformat(self._connections))
 
@@ -147,7 +158,7 @@ class NFA:
         return self.__str__()
 
     def connect(self, src, edge, dest):
-        self._connections.append(Connection(src, edge, dest))
+        self._connections.add(Connection(src, edge, dest))
 
     def mk_node(self):
         node = NFANode(self._numnodes)
@@ -201,6 +212,7 @@ def adj_matrix_from_nfa(nfa, num_nodes):
     return adj
 
 
+# TODO: how do we know what the start node is from the adjacency matrix?
 def nfa_from_adjacency_matrix(adj):
     assert len(adj) > 0
     assert len(adj[0]) > 0
@@ -231,8 +243,6 @@ def nfa_prune(nfa):
 
     prunednfa = NFA()
     old_id_to_new_node = dict([(idx, prunednfa.mk_node()) for idx in used_nodes])
-    print("NFA:\n%s" % nfa)
-    print("remap: %s" % pprint.pformat(old_id_to_new_node))
 
     for c in nfa.connections:
         if c.edge == EdgeType.mk_none_edge():
@@ -242,5 +252,9 @@ def nfa_prune(nfa):
         prunednfa.connect(old_id_to_new_node[c.src.idx],
                           c.edge,
                           old_id_to_new_node[c.dest.idx])
+
+    # TODO: start node is node with no incoming edge
+
+    # TODO: end node is node with no outgoing edge
 
     return prunednfa

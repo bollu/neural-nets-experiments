@@ -1,7 +1,7 @@
 from recurrent.regex import *
 from recurrent.nfa import *
 
-def _regex_ascii_to_nfa(r, nfa):
+def _nfa_from_regex_ascii(r, nfa):
     assert isinstance(r, RegexASCII)
     start = nfa.mk_node()
     end = nfa.mk_node()
@@ -9,11 +9,11 @@ def _regex_ascii_to_nfa(r, nfa):
     return (start, end)
 
 
-def _regex_or_to_nfa(r, nfa):
+def _nfa_from_regex_or(r, nfa):
     assert isinstance(r, RegexOr)
     
-    (s1, e1) = _regex_to_nfa(r.r1, nfa)
-    (s2, e2) = _regex_to_nfa(r.r2, nfa)
+    (s1, e1) = _nfa_from_regex(r.r1, nfa)
+    (s2, e2) = _nfa_from_regex(r.r2, nfa)
 
     sor = nfa.mk_node()
     eor = nfa.mk_node()
@@ -26,11 +26,11 @@ def _regex_or_to_nfa(r, nfa):
 
     return (sor, eor)
 
-def _regex_sequence_to_nfa(r, nfa):
+def _nfa_from_regex_sequence(r, nfa):
     assert isinstance(r, RegexSequence)
 
-    (s1, e1) = _regex_to_nfa(r.r1, nfa)
-    (s2, e2) = _regex_to_nfa(r.r2, nfa)
+    (s1, e1) = _nfa_from_regex(r.r1, nfa)
+    (s2, e2) = _nfa_from_regex(r.r2, nfa)
 
     nfa.connect(e1, EdgeType.mk_epsilon_edge(), s2)
     # replace_old_nfa_node(nfa, e1, s2)
@@ -47,10 +47,10 @@ def _regex_sequence_to_nfa(r, nfa):
 #     |
 #     v
 #    out
-def _star_regex_to_nfa(star, nfa):
+def _nfa_from_regex_star(star, nfa):
     assert isinstance(star, StarRegex)
 
-    (s, e) = _regex_to_nfa(star.r, nfa)
+    (s, e) = _nfa_from_regex(star.r, nfa)
 
     nodestar = nfa.mk_node()
     nfa.connect(nodestar, EdgeType.mk_none_edge(), s)
@@ -58,24 +58,24 @@ def _star_regex_to_nfa(star, nfa):
 
     return (nodestar, nodestar)
 
-def _regex_to_nfa(r, nfa):
+def _nfa_from_regex(r, nfa):
     assert isinstance(r, Regex)
     assert isinstance(nfa, NFA)
 
     if isinstance(r, RegexASCII):
-        return _regex_ascii_to_nfa(r, nfa)
+        return _nfa_from_regex_ascii(r, nfa)
     elif isinstance(r, RegexOr):
-        return _regex_or_to_nfa(r, nfa)
+        return _nfa_from_regex_or(r, nfa)
     elif isinstance(r, RegexSequence):
-        return _regex_sequence_to_nfa(r, nfa)
+        return _nfa_from_regex_sequence(r, nfa)
     elif isinstance(r, StarRegex):
-        return _star_regex_to_nfa(r, nfa)
+        return _nfa_from_regex_star(r, nfa)
     else:
         raise RuntimeError("should not reach here, unreachable branch!")
 
 def nfa_from_regex(r):
     nfa = NFA()
-    (start, end) = _regex_to_nfa(r, nfa)
+    (start, end) = _nfa_from_regex(r, nfa)
     nfa.start_node = start
     nfa.end_node = end
     return nfa

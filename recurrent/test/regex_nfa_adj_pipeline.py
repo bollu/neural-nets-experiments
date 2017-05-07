@@ -10,3 +10,6 @@ n_new = nfa.nfa_prune(n_new)
 
 print("old:\n%s" % n)
 print("new:\n%s" % n_new)
+
+
+assert n == n_new, "NFA recovered from adj matrix not equal!"

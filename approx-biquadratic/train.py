@@ -34,10 +34,10 @@ NUM_TRANING_STEPS = 1000000
 CONSTANTS = [420000, 43000, -700, -70, 1]
 
 INPUT_DIM = 1
-HIDDEN_DIMS = [5, 5, 5, 5, 30, 5]
+HIDDEN_DIMS = [10, 10, 10, 10, 10, 10]
 OUTPUT_DIM = INPUT_DIM
 
-BATCH_SIZE = 1000
+BATCH_SIZE = 80
 
 def is_running_in_ipython():
     return "get_ipython" in dir()

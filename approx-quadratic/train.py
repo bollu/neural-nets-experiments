@@ -3,7 +3,8 @@ from tensorflow.python import debug as tf_debug
 import numpy as np
 import sys
 import os
-import pudb
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # NOTE TO SELF
 # ------------
@@ -31,7 +32,7 @@ NUM_TRANING_STEPS = 1000000
 CONSTANTS = [1, 2, 3]
 
 INPUT_DIM = 1
-HIDDEN_DIMS = [3, 5]
+HIDDEN_DIMS = [10, 10]
 OUTPUT_DIM = INPUT_DIM
 
 BATCH_SIZE = 1000
@@ -40,7 +41,7 @@ def is_running_in_ipython():
     return "get_ipython" in dir()
 
 def mk_input():
-    xs = np.random.normal(0, 5, size=(BATCH_SIZE, INPUT_DIM))
+    xs = np.random.uniform(-5, 5, size=(BATCH_SIZE, INPUT_DIM))
     ys = np.zeros(shape=(BATCH_SIZE, INPUT_DIM))
     for (i, c) in enumerate(CONSTANTS):
         ys = ys + c * np.power(xs, i)
@@ -56,9 +57,11 @@ def mk_vars():
     var_weights = []
     var_biases = []
 
+    STDDEV = 2
+    MEAN = 0
     for i in range(1, len(HIDDEN_DIMS)):
-        var_weights.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i - 1], HIDDEN_DIMS[i]]), name="hw_%s" % i))
-        var_biases.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i]]), name="hb_%s" % i))
+        var_weights.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i - 1], HIDDEN_DIMS[i]], MEAN, STDDEV), name="hw_%s" % i))
+        var_biases.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i]], MEAN, STDDEV), name="hb_%s" % i))
 
     return (var_weights, var_biases)
 
@@ -100,6 +103,14 @@ def mk_optimiser(var_cost, learning_rate):
     return optimizer
 
 
+def mk_plot(real_xs, real_ys, train_ys):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.scatter(real_xs, real_ys, alpha=0.5, label="real")
+    ax1.scatter(real_xs, train_ys, alpha=0.5, label="train")
+    plt.show()
+
+
 def run_save_vars(saver, sess, savefolder, savepath):
     print("*** saving data...")
 
@@ -132,8 +143,13 @@ def run_restore_vars(saver, sess, savefolder, savepath):
 
 
 def mk_summary_writer(logs_path):
-    summary_writer = tf.summary.FileWriter(logs_path,
-                                           graph=tf.get_default_graph())
+    tf.summary.FileWriter(logs_path, graph=tf.get_default_graph())
+
+
+def mk_session_debug(sess):
+    sess = tf_debug.LocalCLIDebugWrapperSession(sess)
+    sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+
 
 if __name__ == "__main__" and not is_running_in_ipython():
     np.seterr("raise")
@@ -151,17 +167,15 @@ if __name__ == "__main__" and not is_running_in_ipython():
 
         mk_summary_writer(LOGSPATH)
 
-
         sess = tf.Session()
-        # sess = tf_debug.LocalCLIDebugWrapperSession(sess)
-        # sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 
         with sess:
+
             run_restore_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
 
             for i in range(NUM_TRANING_STEPS):
                 (xs, ys) = mk_input()
-                nn_out_y, cost, weights, biases, _ = \
+                nn_out_ys, cost, weights, biases, _ = \
                     sess.run([var_y, var_cost, var_weights, var_biases, optimizer],
                              feed_dict={ph_x: xs, ph_y: ys})
 
@@ -170,10 +184,13 @@ if __name__ == "__main__" and not is_running_in_ipython():
 
                 if i % 1000 == 0:
                     print("f(%s) = real(%s) | ideal(%s)" %
-                          (xs, nn_out_y, ys))
+                          (xs, nn_out_ys, ys))
 
                     print("weights: %s\nbiases: %s" % (weights, biases))
                     print("cost: %s" % cost)
+
+                if i % 4000 == 0:
+                    mk_plot(xs, ys, nn_out_ys)
 
             run_save_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
 

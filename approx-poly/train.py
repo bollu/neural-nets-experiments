@@ -22,19 +22,19 @@ LOGSPATH = 'logs/'
 SAVEFILEPATH = os.path.join(SAVEFOLDER, SAVENAME)
 
 # meta variables / hyperparameters
-LEARNING_RATE = 0.002
+LEARNING_RATE = 0.02
 NUM_TRANING_STEPS = 1000000
 
 
 # model variables
 # a_i x^i
-CONSTANTS = [1, 2]
+CONSTANTS = [1, 2, 3]
 
 INPUT_DIM = 1
-HIDDEN_DIMS = []
+HIDDEN_DIMS = [3, 5]
 OUTPUT_DIM = INPUT_DIM
 
-BATCH_SIZE = 100
+BATCH_SIZE = 1000
 
 def is_running_in_ipython():
     return "get_ipython" in dir()
@@ -71,45 +71,22 @@ def mk_placeholders():
 
 
 def axpy(a, x, y, i):
-    ax = tf.matmul(a, x, name="x_mul_w_%s" % i)
-    return tf.add(ax, y, name="x_mul_w_plus_b_%s" % i)
+    with tf.name_scope("axpy_%s" % i):
+        ax = tf.matmul(a, x, name="x_mul_w")
+        return tf.add(ax, y, name="x_mul_w_plus_b")
 
 def mk_nn(ph_x, var_weights, var_biases):
     current = ph_x
     for i in range(0, len(HIDDEN_DIMS) - 1):
-        next = axpy(current, var_weights[i], var_biases[i], i);
+        with tf.name_scope("layer_%s" % i):
+            next = axpy(current, var_weights[i], var_biases[i], i);
 
-        # last layer should not have relu
-        if i < len(HIDDEN_DIMS) - 2:
-            next = tf.nn.relu(next)
-        current = next
+            # last layer should not have relu
+            if i < len(HIDDEN_DIMS) - 2:
+                next = tf.nn.relu(next)
+            current = next
 
     return current
-
-
-def huber_loss(y_true, y_pred, max_grad=1.):
-    """Calculates the huber loss.
-
-    Parameters
-    ----------
-    y_true: np.array, tf.Tensor
-      Target value.
-    y_pred: np.array, tf.Tensor
-      Predicted value.
-    max_grad: float, optional
-      Positive floating point value. Represents the maximum possible
-      gradient magnitude.
-
-    Returns
-    -------
-    tf.Tensor
-      The huber loss.
-    """
-    err = tf.abs(y_true - y_pred, name='abs')
-    mg = tf.constant(max_grad, name='max_grad')
-    lin = mg*(err-.5*mg)
-    quad=.5*err*err
-    return tf.where(err < mg, quad, lin)
 
 
 def mk_cost(ph_y, var_y):
@@ -119,7 +96,7 @@ def mk_cost(ph_y, var_y):
 
 def mk_optimiser(var_cost, learning_rate):
     optimizer = \
-        tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(var_cost)
+        tf.train.AdagradOptimizer(learning_rate=learning_rate).minimize(var_cost)
     return optimizer
 
 

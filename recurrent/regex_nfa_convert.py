@@ -1,5 +1,5 @@
-from .regex import *
-from .nfa import *
+from recurrent.regex import *
+from recurrent.nfa import *
 
 def _regex_ascii_to_nfa(r, nfa):
     assert isinstance(r, RegexASCII)
@@ -73,7 +73,7 @@ def _regex_to_nfa(r, nfa):
     else:
         raise RuntimeError("should not reach here, unreachable branch!")
 
-def regex_to_nfa(r):
+def nfa_from_regex(r):
     nfa = NFA()
     (start, end) = _regex_to_nfa(r, nfa)
     nfa.start_node = start

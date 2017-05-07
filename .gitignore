@@ -8,3 +8,6 @@ __pycache__
 # graphviz
 *.gv
 *.gv.pdf
+
+# pyharm
+.idea/

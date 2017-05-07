@@ -231,11 +231,14 @@ def nfa_prune(nfa):
 
     prunednfa = NFA()
     old_id_to_new_node = dict([(idx, prunednfa.mk_node()) for idx in used_nodes])
-    print("remap: %s" % old_id_to_new_node)
-
-    import pudb; pudb.set_trace()
+    print("NFA:\n%s" % nfa)
+    print("remap: %s" % pprint.pformat(old_id_to_new_node))
 
     for c in nfa.connections:
+        if c.edge == EdgeType.mk_none_edge():
+            continue
+
+        print("c: %s\n" % (c, ))
         prunednfa.connect(old_id_to_new_node[c.src.idx],
                           c.edge,
                           old_id_to_new_node[c.dest.idx])

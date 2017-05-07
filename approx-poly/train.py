@@ -1,83 +1,125 @@
 import tensorflow as tf
+from tensorflow.python import debug as tf_debug
 import numpy as np
 import sys
 import os
+import pudb
+
+# NOTE TO SELF
+# ------------
+
+# Tensorflow uses row vectors, so I can exploit batches by using
+# (?, vector_len) interpretation. Which means, when writing matmul,
+# you gotta use (1, vector_len) (1 row, vector_len columns) which are
+# **row vectors**.
 
 # saves
 SAVEFOLDER = 'saves/'
 SAVENAME = 'linalg-model'
+
+LOGSPATH = 'logs/'
+
 SAVEFILEPATH = os.path.join(SAVEFOLDER, SAVENAME)
 
 # meta variables / hyperparameters
-LEARNING_RATE = 0.5
-NUM_TRANING_STEPS = 10000
+LEARNING_RATE = 0.2
+NUM_TRANING_STEPS = 1000000
 
 
 # model variables
-M = [10, 20]
-C = 3
+# a_i x^i
+CONSTANTS = [1, 2]
 
-NINPUT = 1
-DIMHIDDEN = [100]
-NOUTPUT = NINPUT
+INPUT_DIM = 1
+HIDDEN_DIMS = []
+OUTPUT_DIM = INPUT_DIM
 
+BATCH_SIZE = 5000
+
+def is_running_in_ipython():
+    return "get_ipython" in dir()
 
 def mk_input():
-    xs = np.random.normal(size=(NINPUT, 1))
-    ys = xs * M[0] + xs * M[1] + C
+    xs = np.random.normal(10, 30, size=(BATCH_SIZE, INPUT_DIM))
+    ys = np.zeros(shape=(BATCH_SIZE, INPUT_DIM))
+    for (i, c) in enumerate(CONSTANTS):
+        ys = ys + c * np.power(xs, i)
 
     return (xs, ys)
 
 
 def mk_vars():
-    assert len(DIMHIDDEN) >= 1,  "expected hidden layer dimensions"
-    
+    # *** HACK!! refactor this to not mutate
+    HIDDEN_DIMS.insert(0, INPUT_DIM)
+    HIDDEN_DIMS.append(OUTPUT_DIM)
+
     var_weights = []
     var_biases = []
-    # first hidden layer from input
-    # (hidden x in) dimensions
-    var_weights.append(tf.Variable(tf.random_normal([DIMHIDDEN[0], NINPUT]), name="hw_1"))
-    var_biases.append(tf.Variable(tf.random_normal([DIMHIDDEN[0], 1]), name="hb_1"))
 
-
-    # output layer
-    # (out x hidden dimensions)
-    var_weights.append(tf.Variable(tf.random_normal([NOUTPUT, DIMHIDDEN[-1]]),
-                                   name="hw_%s" % len(DIMHIDDEN)))
-    var_biases.append(tf.Variable(tf.random_normal([NOUTPUT, 1]),
-                                  name="hb_%s" % len(DIMHIDDEN)))
+    for i in range(len(HIDDEN_DIMS)):
+        var_weights.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i - 1], HIDDEN_DIMS[i]]), name="hw_%s" % i))
+        var_biases.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i]]), name="hb_%s" % i))
 
     return (var_weights, var_biases)
 
 
 def mk_placeholders():
-    x = tf.placeholder(tf.float32, (NINPUT, 1), name="xinput")
-    y = tf.placeholder(tf.float32, (NOUTPUT, 1), name="yinput")
+    x = tf.placeholder(tf.float32, [None, INPUT_DIM], name="xinput")
+    y = tf.placeholder(tf.float32, [None, OUTPUT_DIM], name="yinput")
 
     return (x, y)
 
 
-def axpy(var, weights, bias, i):
-    return tf.add(tf.matmul(weights, var, name="x_mul_w_%s" % i),
-                  bias, name="x_mul_w_plus_b_%s" % i)
+def axpy(a, x, y, i):
+    ax = tf.matmul(a, x, name="x_mul_w_%s" % i)
+    return tf.add(ax, y, name="x_mul_w_plus_b_%s" % i)
 
 def mk_nn(ph_x, var_weights, var_biases):
-    hidden = axpy(ph_x, var_weights[0], var_biases[0], 1)
-    hidden = tf.nn.relu(hidden)
+    current = ph_x
+    for i in range(len(HIDDEN_DIMS)):
+        next = axpy(current, var_weights[i], var_biases[i], i);
 
-    out = axpy(hidden, var_weights[-1], var_biases[-1], len(DIMHIDDEN))
-    return out
+        # last layer should not have relu
+        if i < len(HIDDEN_DIMS) - 1:
+            next = tf.nn.relu(next)
+        current = next
+
+    return current
+
+
+def huber_loss(y_true, y_pred, max_grad=1.):
+    """Calculates the huber loss.
+
+    Parameters
+    ----------
+    y_true: np.array, tf.Tensor
+      Target value.
+    y_pred: np.array, tf.Tensor
+      Predicted value.
+    max_grad: float, optional
+      Positive floating point value. Represents the maximum possible
+      gradient magnitude.
+
+    Returns
+    -------
+    tf.Tensor
+      The huber loss.
+    """
+    err = tf.abs(y_true - y_pred, name='abs')
+    mg = tf.constant(max_grad, name='max_grad')
+    lin = mg*(err-.5*mg)
+    quad=.5*err*err
+    return tf.where(err < mg, quad, lin)
 
 
 def mk_cost(ph_y, var_y):
-    errs = tf.losses.absolute_difference(labels=ph_y,
-                                         predictions=var_y)
+    errs = huber_loss(ph_y, var_y)
     return errs
 
 
 def mk_optimiser(var_cost, learning_rate):
     optimizer = \
-        tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(var_cost)
+        tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(var_cost)
     return optimizer
 
 
@@ -112,8 +154,14 @@ def run_restore_vars(saver, sess, savefolder, savepath):
     sess.run(global_init)
 
 
-if __name__ == "__main__":
+def mk_summary_writer(logs_path):
+    summary_writer = tf.summary.FileWriter(logs_path,
+                                           graph=tf.get_default_graph())
+
+if __name__ == "__main__" and not is_running_in_ipython():
+    np.seterr("raise")
     if len(sys.argv) == 1:
+
         (var_weights, var_biases) = mk_vars()
         (ph_x, ph_y) = mk_placeholders()
 
@@ -124,24 +172,33 @@ if __name__ == "__main__":
 
         saver = tf.train.Saver()
 
-        with tf.Session() as sess:
+        mk_summary_writer(LOGSPATH)
+
+
+        sess = tf.Session()
+        sess = tf_debug.LocalCLIDebugWrapperSession(sess)
+        sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
+
+        with sess:
             run_restore_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
 
             for i in range(NUM_TRANING_STEPS):
                 (xs, ys) = mk_input()
-                nn_out_y, cost, _ = \
-                    sess.run([var_y, var_cost, optimizer],
+                nn_out_y, cost, weights, biases, _ = \
+                    sess.run([var_y, var_cost, var_weights, var_biases, optimizer],
                              feed_dict={ph_x: xs, ph_y: ys})
 
-                if i % 200 == 0:
+                if i % 5000 == 0:
                     run_save_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
 
-                if i % 50 == 0:
+                if i % 1000 == 0:
                     print("f(%s) = real(%s) | ideal(%s)" %
                           (xs, nn_out_y, ys))
+
+                    print("weights: %s\nbiases: %s" % (weights, biases))
                     print("cost: %s" % cost)
 
-            run_save_vars(saver, sess)
+            run_save_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
 
             weights = sess.run(var_weights)
             biases = sess.run(var_biases)

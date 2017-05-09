@@ -29,88 +29,67 @@ NUM_TRANING_STEPS = 1000000
 
 # model variables
 # a_i x^i
-CONSTANTS = [10, 3, 10]
-
-STATE_UNROLL = 2
+CONSTANTS = [1, 2, 3]
 
 INPUT_DIM = 1
-STATE_DIM = 10
-OUTPUT_DIM = 1
+HIDDEN_DIMS = [10, 10]
+OUTPUT_DIM = INPUT_DIM
 
-BATCH_SIZE = 50
+BATCH_SIZE = 1000
 
 def is_running_in_ipython():
     return "get_ipython" in dir()
 
 def mk_input():
-    xs = np.random.uniform(-5, 5, size=(BATCH_SIZE, STATE_UNROLL, INPUT_DIM))
-    ys = np.zeros(shape=(BATCH_SIZE, OUTPUT_DIM))
+    xs = np.random.uniform(-5, 5, size=(BATCH_SIZE, INPUT_DIM))
+    ys = np.zeros(shape=(BATCH_SIZE, INPUT_DIM))
     for (i, c) in enumerate(CONSTANTS):
-        ys = ys + c * np.power(xs[:, -1, :], i)
+        ys = ys + c * np.power(xs, i)
 
     return (xs, ys)
 
 
 def mk_vars():
-    vars = {}
+    # *** HACK!! refactor this to not mutate
+    HIDDEN_DIMS.insert(0, INPUT_DIM)
+    HIDDEN_DIMS.append(OUTPUT_DIM)
 
-    vars["input_ws"] = tf.Variable(tf.random_normal([INPUT_DIM, STATE_DIM]), name="input_ws")
-    vars["input_bs"] = tf.Variable(tf.random_normal([STATE_DIM]), name="input_bs")
+    var_weights = []
+    var_biases = []
 
-    vars["state_ws"] = tf.Variable(tf.random_normal([STATE_DIM, STATE_DIM]), name="state_ws")
-    vars["state_bs"] = tf.Variable(tf.random_normal([STATE_DIM]), name="state_bs")
+    STDDEV = 2
+    MEAN = 0
+    for i in range(1, len(HIDDEN_DIMS)):
+        var_weights.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i - 1], HIDDEN_DIMS[i]], MEAN, STDDEV), name="hw_%s" % i))
+        var_biases.append(tf.Variable(tf.random_normal([HIDDEN_DIMS[i]], MEAN, STDDEV), name="hb_%s" % i))
 
-
-    vars["state_to_output_ws"] = tf.Variable(tf.random_normal([STATE_DIM, OUTPUT_DIM]), name="state_to_output_ws")
-    vars["state_to_output_bs"] = tf.Variable(tf.random_normal([OUTPUT_DIM]), name="state_to_output_bs")
-
-    return vars
+    return (var_weights, var_biases)
 
 
 def mk_placeholders():
-    x = tf.placeholder(tf.float32, [None, STATE_UNROLL, INPUT_DIM], name="xinput")
+    x = tf.placeholder(tf.float32, [None, INPUT_DIM], name="xinput")
     y = tf.placeholder(tf.float32, [None, OUTPUT_DIM], name="yinput")
 
     return (x, y)
 
 
-def axpy(a, x, y, varname):
-    with tf.name_scope("axpy_%s" % varname):
-        ax = tf.matmul(a, x, name="%s_mul_w" % varname)
-        return tf.add(ax, y, name="%s_mul_w_plus_b" % varname)
+def axpy(a, x, y, i):
+    with tf.name_scope("axpy_%s" % i):
+        ax = tf.matmul(a, x, name="x_mul_w")
+        return tf.add(ax, y, name="x_mul_w_plus_b")
 
+def mk_nn(ph_x, var_weights, var_biases):
+    current = ph_x
+    for i in range(0, len(HIDDEN_DIMS) - 1):
+        with tf.name_scope("layer_%s" % i):
+            next = axpy(current, var_weights[i], var_biases[i], i);
 
+            # last layer should not have relu
+            if i < len(HIDDEN_DIMS) - 2:
+                next = tf.nn.relu(next)
+            current = next
 
-def mk_rnn_cell(past_state_vec, state_ws, state_bs,
-                input_vec, input_ws, input_bs,
-                state_to_output_ws, state_to_output_bs, i):
-    with tf.name_scope("rnn_cell_%s" % i):
-        input_factor = axpy(input_vec, input_ws, input_bs, "inp")
-
-        next_state = tf.add(axpy(past_state_vec, state_ws, state_bs, "state"), input_factor)
-        next_state = tf.nn.relu(next_state, name="relu_next_state_vec")
-
-        output = axpy(next_state, state_to_output_ws, state_to_output_bs, "output")
-        # output = tf.nn.softmax(output)
-
-    return (next_state, output)
-
-def mk_nn(ph_x, vars):
-    
-    var_y = None
-    s = tf.zeros([1, STATE_DIM])
-
-    for i in range(STATE_UNROLL):
-        s, y = mk_rnn_cell(s, vars["state_ws"], vars["state_bs"],
-                           ph_x[:, i, :], vars["input_ws"], vars["input_bs"],
-                        vars["state_to_output_ws"], vars["state_to_output_bs"],
-                        i + 1)
-        # var_y will be the final y
-        var_y = y
-
-    assert var_y is not None
-
-    return var_y
+    return current
 
 
 def mk_cost(ph_y, var_y):
@@ -120,7 +99,7 @@ def mk_cost(ph_y, var_y):
 
 def mk_optimiser(var_cost, learning_rate):
     optimizer = \
-            tf.train.AdagradOptimizer(learning_rate=learning_rate).minimize(var_cost)
+        tf.train.AdagradOptimizer(learning_rate=learning_rate).minimize(var_cost)
     return optimizer
 
 
@@ -183,10 +162,10 @@ if __name__ == "__main__" and not is_running_in_ipython():
     np.seterr("raise")
     if len(sys.argv) == 1:
 
-        vars = mk_vars()
+        (var_weights, var_biases) = mk_vars()
         (ph_x, ph_y) = mk_placeholders()
 
-        var_y = mk_nn(ph_x, vars)
+        var_y = mk_nn(ph_x, var_weights, var_biases)
 
         var_cost = mk_cost(ph_y, var_y)
         optimizer = mk_optimiser(var_cost, LEARNING_RATE)
@@ -205,9 +184,9 @@ if __name__ == "__main__" and not is_running_in_ipython():
 
             for i in range(NUM_TRANING_STEPS):
                 (xs, ys) = mk_input()
-                nn_out_ys, cost, _ = \
-                        sess.run([var_y, var_cost, optimizer],
-                                 feed_dict={ph_x: xs, ph_y: ys})
+                nn_out_ys, cost, weights, biases, _ = \
+                    sess.run([var_y, var_cost, var_weights, var_biases, optimizer],
+                             feed_dict={ph_x: xs, ph_y: ys})
 
                 if i % 5000 == 0:
                     run_save_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)
@@ -216,13 +195,14 @@ if __name__ == "__main__" and not is_running_in_ipython():
                     print("f(%s) = real(%s) | ideal(%s)" %
                           (xs, nn_out_ys, ys))
 
+                    print("weights: %s\nbiases: %s" % (weights, biases))
                     print("cost: %s" % cost)
 
                 if prev_cost is None:
                     prev_cost = cost
 
-                if abs(cost - prev_cost) / cost >= 0.8:
-                    plotter.plot_data(xs[:, -1, :], ys, nn_out_ys)
+                if abs(cost - prev_cost) / cost >= 0.3:
+                    plotter.plot_data(xs, ys, nn_out_ys)
                     prev_cost = cost
 
             run_save_vars(saver, sess, SAVEFOLDER, SAVEFILEPATH)

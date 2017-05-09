@@ -80,3 +80,7 @@ def nfa_from_regex(r):
     nfa.end_node = end
     return nfa
 
+
+def regex_from_nfa(n):
+    n = nfa_prune(n)
+    
